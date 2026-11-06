@@ -114,6 +114,10 @@ int app_config_save(void) {
         fprintf(file, "  lamp: %s\n", lamp);
     }
     fprintf(file, "  adc_threshold: %d\n", app_config.adc_threshold);
+    if (app_config.adc_threshold_day != INT_MIN)
+        fprintf(file, "  adc_threshold_day: %d\n", app_config.adc_threshold_day);
+    if (app_config.adc_channel >= 0)
+        fprintf(file, "  adc_channel: %d\n", app_config.adc_channel);
 
     fprintf(file, "isp:\n");
     fprintf(file, "  mirror: %s\n", app_config.mirror ? "true" : "false");
@@ -291,6 +295,8 @@ enum ConfigError app_config_parse(void) {
     app_config.adc_device[0] = 0;
     app_config.night_lamp = HAL_LIGHT_IR;
     app_config.adc_threshold = 128;
+    app_config.adc_threshold_day = INT_MIN;
+    app_config.adc_channel = -1;
 
     struct IniConfig ini;
     memset(&ini, 0, sizeof(struct IniConfig));
@@ -354,7 +360,7 @@ enum ConfigError app_config_parse(void) {
 
     err =
         parse_bool(&ini, "night_mode", "enable", &app_config.night_mode_enable);
-    #define PIN_MAX 95
+    #define PIN_MAX 127
     if (app_config.night_mode_enable) {
         {
             int pin;
@@ -375,7 +381,7 @@ enum ConfigError app_config_parse(void) {
             &ini, "night_mode", "ir_led_pin", 0, PIN_MAX,
             &app_config.ir_led_pin);
         parse_int(
-            &ini, "night_mode", "pin_switch_delay_us", 0, 1000,
+            &ini, "night_mode", "pin_switch_delay_us", 0, 10000,
             &app_config.pin_switch_delay_us);
         parse_param_value(
             &ini, "night_mode", "adc_device", app_config.adc_device);
@@ -403,6 +409,12 @@ enum ConfigError app_config_parse(void) {
         parse_int(
             &ini, "night_mode", "adc_threshold", INT_MIN, INT_MAX,
             &app_config.adc_threshold);
+        parse_int(
+            &ini, "night_mode", "adc_threshold_day", INT_MIN, INT_MAX,
+            &app_config.adc_threshold_day);
+        parse_int(
+            &ini, "night_mode", "adc_channel", -1, 255,
+            &app_config.adc_channel);
     }
 
     err = parse_bool(&ini, "isp", "mirror", &app_config.mirror);

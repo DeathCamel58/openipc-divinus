@@ -37,6 +37,8 @@ struct AppConfig {
     char adc_device[128];
     hal_light night_lamp;
     int adc_threshold;
+    int adc_threshold_day;
+    int adc_channel;
 
     // [isp]
     bool mirror;

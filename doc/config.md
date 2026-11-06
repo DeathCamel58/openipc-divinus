@@ -21,15 +21,17 @@ This document describes the fields that can be found within a configuration file
 ## Night mode section
 
 - **enable**: Boolean to activate night mode support.
-- **ir_cut_pin1**: GPIO number for IR cut filter control (normal state pin).
+- **ir_cut_pin1**: GPIO number for IR cut filter control (normal state pin). Pins up to 127 are accepted.
 - **ir_cut_pin2**: GPIO number for IR cut filter control (inverted state pin).
 - **ir_led_pin**: GPIO number for IR LED control.
 - **ir_sensor_pin**: GPIO number for PIR motion sensor or similar digital toggle; `999` means no sensor (default).
 - **check_interval_s**: Interval in seconds to check night mode conditions.
-- **pin_switch_delay_us**: Delay in microseconds before switching GPIO pins, must be used to protect cut filter coils from burning.
+- **pin_switch_delay_us**: How long the IR cut filter coil is driven, in units of 100 µs despite the name (e.g. `2000` = 200 ms), up to 10000; must be used to protect cut filter coils from burning. The coil is only pulsed when the mode changes.
 - **adc_device**: Path to the ADC device used for night mode.
 - **lamp**: Illuminator mode on Fullhan V100, combinable: `ir` (default), `white` (colour night vision, IR-cut filter in) or `none`. Combine with commas, e.g. `ir,white`.
 - **adc_threshold**: Threshold raw value to trigger night mode, depends on the bitness of the given ADC device.
+- **adc_threshold_day**: Optional second threshold for hysteresis; between the two the mode does not change. Above `adc_threshold` it means a lower reading is darker (photoresistor to ground): night below `adc_threshold`, day above `adc_threshold_day`. Below it, a higher reading is darker. Without it, night is `>= adc_threshold` as before.
+- **adc_channel**: Optional; for ADCs exposed as a text file of `adcN=value` lines (e.g. Ambarella's sysfs `adcsys`), the channel to read from `adc_device`. Without it the device is read as a binary integer.
 
 ## ISP section
 

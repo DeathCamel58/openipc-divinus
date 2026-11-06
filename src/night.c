@@ -1,5 +1,9 @@
 #include "night.h"
 
+#include <fcntl.h>
+#include <limits.h>
+#include <string.h>
+
 char nightOn = 0;
 static bool grayscale = false, ircut = true, irled = false, manual = false;
 pthread_t nightPid = 0;
@@ -70,6 +74,24 @@ void night_mode(bool enable) {
     night_irled(enable);
 }
 
+static bool adc_read(int fd, int *val) {
+    if (app_config.adc_channel < 0)
+        return read(fd, val, sizeof(*val)) > 0;
+
+    char buf[512], key[16];
+    ssize_t n;
+    if (lseek(fd, 0, SEEK_SET) < 0 || (n = read(fd, buf, sizeof(buf) - 1)) <= 0)
+        return false;
+    buf[n] = 0;
+    snprintf(key, sizeof(key), "adc%d=", app_config.adc_channel);
+    for (char *p = buf; (p = strstr(p, key)); p++)
+        if (p == buf || p[-1] == '\n' || p[-1] == ' ') {
+            *val = (int)strtol(p + strlen(key), NULL, 0);
+            return true;
+        }
+    return false;
+}
+
 void *night_thread(void) {
     gpio_init();
     usleep(10000);
@@ -91,27 +113,40 @@ void *night_thread(void) {
 #endif
     if (app_config.adc_device[0]) {
         int adc_fd = -1;
-        fd_set adc_fds;
-        int cnt = 0, tmp = 0, val;
+        int cnt = 0, tmp = 0, val, state = manual ? -1 : night_mode_on();
+        int thr_n = app_config.adc_threshold, thr_d = app_config.adc_threshold_day;
+        bool low_dark = thr_d != INT_MIN && thr_d > thr_n;
+        if (thr_d == INT_MIN) thr_d = thr_n;
 
-        if ((adc_fd = open(app_config.adc_device, O_RDONLY | O_NONBLOCK)) <= 0) {
+        if ((adc_fd = open(app_config.adc_device, O_RDONLY | O_NONBLOCK)) < 0) {
             HAL_DANGER("night", "Could not open the ADC virtual device!\n");
             return NULL;
         }
         while (keepRunning && nightOn) {
-            if (read(adc_fd, &val, sizeof(val)) > 0) {
+            if (adc_read(adc_fd, &val)) {
                 usleep(10000);
                 tmp += val;
                 cnt++;
             }
             if (cnt == 12) {
                 tmp /= cnt;
-                if (!manual) night_mode(tmp >= app_config.adc_threshold);
+                int next = state;
+                if (low_dark) {
+                    if (tmp < thr_n) next = 1;
+                    else if (tmp > thr_d) next = 0;
+                } else {
+                    if (tmp >= thr_n) next = 1;
+                    else if (tmp <= thr_d) next = 0;
+                }
+                if (next < 0) next = 0;
+                if (!manual && next != state) night_mode(next);
+                if (!manual) state = next;
+                else state = -1;
                 cnt = tmp = 0;
             }
             usleep(app_config.check_interval_s * 1000000 / 12);
         }
-        if (adc_fd) close(adc_fd);
+        close(adc_fd);
     } else if (app_config.ir_sensor_pin == 999) {
         while (keepRunning && nightOn) sleep(1);
     } else {
